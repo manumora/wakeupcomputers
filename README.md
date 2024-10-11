@@ -1,5 +1,5 @@
 # Wakeup Computers
-Wake up computers registered in LDAP
+Wakeup computers registered in LDAP
 
 ## Installation
 - apt update && apt install python3-venv
