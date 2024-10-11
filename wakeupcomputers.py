@@ -22,11 +22,17 @@
 
 from ldap3 import Server, Connection, ALL, SUBTREE
 from wakeonlan import send_magic_packet
+import os
 
 LDAP_SERVER = "servidor"
 LDAP_BASE = "dc=instituto,dc=extremadura,dc=es"
+COMPUTERS = os.getenv("COMPUTERS", "*-pro *-aio *-sia")
 
 class LdapConnection(object):
+    def makeFilter(self):
+        items = ["(cn=" + computer.strip() + ")" for computer in COMPUTERS.split()]
+        return "(|" + "".join(items) + ")"
+
     def connectauth(self):
         server = Server(LDAP_SERVER, get_info=ALL)
         self.connectauth = Connection(server, "", "")
@@ -41,19 +47,25 @@ class LdapConnection(object):
 
     def getMacs(self):
         macs = list()
-        search = self.search("cn=DHCP Config","(|(cn=*-pro)(cn=*-aio)(cn=*-sia))", ["dhcpHWAddress"])
+        search = self.search("cn=DHCP Config", self.makeFilter(), ["dhcpHWAddress", "cn"])
         for s in search:
-            macs.append(s['dhcpHWAddress'][0].replace("ethernet ", ""))
+            if len(s['dhcpHWAddress']) > 0:
+                macs.append(
+                    dict(
+                        host=s['cn'],
+                        mac=s['dhcpHWAddress'][0].replace("ethernet ", "")
+                    )
+                )
         return macs
 
 def main():
     l = LdapConnection()
     l.connectauth()
     macs  = l.getMacs()
-    for mac in macs:
+    for item in macs:
         try:
-            send_magic_packet(mac)
-            print(f"WoL package sent to {mac}.")
+            send_magic_packet(item.get("mac"))
+            print(f"WoL package sent to {item.get('host')} - {item.get('mac')}.")
         except Exception as e:
             print(f"WoL package could not be sent: {e}")
 
